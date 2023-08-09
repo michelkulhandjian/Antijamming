@@ -14,24 +14,24 @@ classdef process < handle
         isOFDM
         isSynch
         Es_N0_dB_f  %fixed Es/N0 for the pulsed jamming
-        % QAM 
-        AveEnQAM  
-        N0QAMatEsN0 
+        % QAM
+        AveEnQAM
+        N0QAMatEsN0
         % MFSK
         AveEnMFSK
-        N0MFSKatEsN0 
+        N0MFSKatEsN0
         % LDS
-        AveEnLDS 
-        N0LDSatEsN0 
+        AveEnLDS
+        N0LDSatEsN0
         % LDSO
-        AveEnLDSO 
-        N0LDSOatEsN0 
+        AveEnLDSO
+        N0LDSOatEsN0
         dSizeAdj
-        MAX_TX_BUFF_SIZE 
-        N_ZPAD_PRE     
-        TX_SCALE        
-        NFFT             
-        hNFFT 
+        MAX_TX_BUFF_SIZE
+        N_ZPAD_PRE
+        TX_SCALE
+        NFFT
+        hNFFT
         preamble
         lts_t
     end
@@ -123,11 +123,11 @@ classdef process < handle
         % Configure modulation parameters
         function configureMod(obj, rP)
 
-            M          = obj.M; 
+            M          = obj.M;
             N          = obj.N;
             K          = obj.K;
             d_v        = obj.d_v;
-            freqSep    = obj.freqSep; 
+            freqSep    = obj.freqSep;
             MFSKSample = obj.MFSKSample;
             isOFDM     = obj.isOFDM;
             Es_N0_dB_f = obj.Es_N0_dB_f;
@@ -144,7 +144,8 @@ classdef process < handle
                 obj.fskMod       = comm.FSKModulator(M,freqSep, 'SamplesPerSymbol', MFSKSample);
                 obj.fskDemod     = comm.FSKDemodulator(M,freqSep, 'SamplesPerSymbol', MFSKSample);
                 %A_M             = de2bi(0:M-1,kBit, 'left-msb')';
-                obj.AveEnMFSK    = 1;
+                cMFSK            = step(obj.fskMod,[0:M-1]');
+                obj.AveEnMFSK    = mean(cMFSK.*conj(cMFSK));
                 obj.N0MFSKatEsN0 = obj.AveEnMFSK * 10^(-Es_N0_dB_f/10);
             end
 
@@ -162,7 +163,7 @@ classdef process < handle
                 [LDSO]           = obj.LDSUserOne(K, N, M);
                 LDSO             = LDSO*diag(1./sqrt(diag(LDSO'*LDSO)));
                 obj.AveEnLDSO    = 1;
-                if isOFDM 
+                if isOFDM
                     obj.LDSO_f   = fft(LDSO);
                 end
                 obj.LDSO         = LDSO;
@@ -200,14 +201,14 @@ classdef process < handle
 
             % Save in Data file
             rP.K                = K;
-            rP.N                = N;       
-            rP.d_v              = d_v;       
-            rP.M                = M;  
+            rP.N                = N;
+            rP.d_v              = d_v;
+            rP.M                = M;
             rP.Es_N0_dB_f       = Es_N0_dB_f;
             rP.MAX_TX_BUFF_SIZE = MAX_TX_BUFF_SIZE;
-            txD.kBit            = kBit; 
-            txD.n_symb          = n_symb; 
-            
+            txD.kBit            = kBit;
+            txD.n_symb          = n_symb;
+
             obj.setParameters(rP);
             obj.configureMod(rP);
             S           = obj.S;  % LDS code set
@@ -224,7 +225,7 @@ classdef process < handle
                 [tx_preamble]   = obj.create_preamble();
             end
 
-            if rP.QAM 
+            if rP.QAM
                 x_QAM     = qammod(tx_data,M);
                 txD.x_QAM = x_QAM;
                 if rP.isSynch
@@ -233,26 +234,26 @@ classdef process < handle
                 obj.writeToFile([txfileName, 'QAM.bin'], x_QAM);
             end
 
-            if rP.MFSK 
+            if rP.MFSK
                 x_MFSK     = step(fskMod,tx_data);
                 txD.x_MFSK = x_MFSK;
-                 if rP.isSynch
+                if rP.isSynch
                     x_MFSK     = [tx_preamble/max(abs(tx_preamble))*max(abs(x_MFSK)); x_MFSK];
-                 end
+                end
                 obj.writeToFile([txfileName, 'MFSK.bin'], x_MFSK);
             end
 
-             if rP.LDS
+            if rP.LDS
                 x_LDS     = obj.lds_mod(tx_data,S,"is_ofdm", rP.isOFDM);
                 txD.x_LDS = x_LDS;
-                 if rP.isSynch
+                if rP.isSynch
                     x_LDS     = [tx_preamble/max(abs(tx_preamble))*max(abs(x_LDS)); x_LDS];
-                 end
+                end
                 obj.writeToFile([txfileName, 'LDS.bin'], x_LDS);
             end
 
             if rP.LDSO
-                if rP.isOFDM 
+                if rP.isOFDM
                     x_LDSO = ifft( LDSO_f(:,tx_data(:, 1)+1));
                 else
                     x_LDSO = LDSO(:,tx_data(:, 1)+1);
@@ -320,7 +321,7 @@ classdef process < handle
                 obj.configureMod(txD.rP);
                 obj.setLDSO(txD);
                 tx_data    = txD.tx_data;
-                n_symb     = txD.n_symb;  
+                n_symb     = txD.n_symb;
             end
             % Set parameters
             M          = obj.M;
@@ -391,7 +392,7 @@ classdef process < handle
                                 errQAM     = sum(tx_data(1:Nsym1) ~= rx_data_QAM(1:Nsym1));
                                 rxD.errQAM = errQAM;
                                 if rP.debugLog
-                                    fprintf(' Error QAM %d out of %d \n', errQAM, Nsym1);
+                                    fprintf(' QAM Error %d out of %d, or %.2f%% \n', errQAM, Nsym1, errQAM/Nsym1*100);
                                 end
                             else
                                 if rP.debugLog
@@ -408,7 +409,7 @@ classdef process < handle
                                 errMFSK     = sum(tx_data(1:Nsym1) ~= rx_data_MFSK(1:Nsym1));
                                 rxD.errMFSK = errMFSK;
                                 if rP.debugLog
-                                    fprintf(' Error MFSK %d out of %d \n', errMFSK, Nsym1);
+                                    fprintf(' MFSK Error %d out of %d, or %.2f%% \n', errMFSK, Nsym1, errMFSK/Nsym1*100);
                                 end
                             else
                                 if rP.debugLog
@@ -425,7 +426,7 @@ classdef process < handle
                                 errLDS     = sum(tx_data(1:Nsym1) ~= rx_data_LDS(1:Nsym1));
                                 rxD.errLDS = errLDS;
                                 if rP.debugLog
-                                    fprintf(' Error LDS %d out of %d \n', errLDS, Nsym1);
+                                    fprintf(' LDS Error %d out of %d, or %.2f%% \n', errLDS, Nsym1, errLDS/Nsym1*100 );
                                 end
                             else
                                 if rP.debugLog
@@ -452,7 +453,7 @@ classdef process < handle
                                 errLDSO     = sum(tx_data(1:Nsym1) ~= rx_data_LDSO(1:Nsym1));
                                 rxD.errLDSO = errLDSO;
                                 if rP.debugLog
-                                    fprintf(' Error LDSO %d out of %d \n', errLDSO, Nsym1);
+                                    fprintf(' LDSO Error %d out of %d, or %.2f%% \n', errLDSO, Nsym1, errLDSO/Nsym1*100);
                                 end
                             else
                                 if rP.debugLog
@@ -478,6 +479,165 @@ classdef process < handle
             save (rxDataName, 'rxD');
 
         end % processRx
+
+        % Process SimChannel data
+        function obj = processSimChannel(obj, txPathDir, rxPathDir, snr, rP)
+
+            if exist('txPathDir','var')
+                % third parameter does exist
+                if isempty(txPathDir)
+                    txPathDir = [pwd];
+                elseif ~exist(txPathDir,'dir')
+                    msg = ['The txPathDir directory: ' txPathDir ',   not found, please verify the directory'];
+                    error(msg)
+                end
+            else
+                txPathDir = [pwd];
+            end
+
+            if exist('rxPathDir','var')
+                % third parameter does exist
+                if isempty(rxPathDir)
+                    rxPathDir = [pwd];
+                elseif ~exist(rxPathDir,'dir')
+                    % Folder does not exist so create it.
+                    mkdir(rxPathDir);
+                end
+            else
+                rxPathDir = [pwd];
+            end
+
+            % Rx data filename
+            if ispc
+                rxfileName = [rxPathDir '\'];
+                txDataName = [txPathDir '\tx_data.mat'];
+                rxDataName = [rxPathDir '\tx_data.mat'];
+            else
+                rxfileName = [rxPathDir '/'];
+                txDataName = [txPathDir '/tx_data.mat'];
+                rxDataName = [rxPathDir '/tx_data.mat'];
+            end
+
+            isTxData   = true;
+            if  ~isfile(txDataName)
+                % No tx Data is present
+                isTxData = false;
+                rP.Es_N0_dB_f = snr;
+                obj.setParameters(rP);
+                obj.configureMod(rP);
+            else
+                % tx configuration and data
+                load(txDataName);
+                txD.rP.Es_N0_dB_f = snr;
+                obj.setParameters(txD.rP);
+                obj.configureMod(txD.rP);
+                obj.setLDSO(txD);
+                tx_data    = txD.tx_data;
+                n_symb     = txD.n_symb;
+            end
+            % Set parameters
+            M          = obj.M;
+            isOFDM     = obj.isOFDM;
+            %Es_N0_dB_f = obj.Es_N0_dB_f;
+            S          = obj.S;  % LDS code set
+            LDSO       = obj.LDSO;  % LDSO code set
+            LDSO_f     = obj.LDSO_f;  % LDSO code set
+            fskDemod   = obj.fskDemod;  % MFSK demodulator
+
+            % Parameters
+            Nspec = 3076;
+            rP.fs = 1;
+
+            % % create preamble
+            % if rP.isSynch
+            %     [tx_preamble]   = obj.create_preamble();
+            % end
+
+            if rP.debugLog
+                fprintf(' Start data loading process... \n');
+            end
+
+            myFiles = dir(fullfile(txPathDir,'**','*.bin')); %gets all bin files in struct
+            NmF = length(myFiles);
+
+            if NmF > 0
+                for k = 1:NmF
+                    baseFileName = myFiles(k).name;
+                    [ext, name] = fileparts(baseFileName);
+                    if ispc
+                        pathparts = strsplit(myFiles(k).folder,'\');
+                        NameFile = [myFiles(k).folder '\' myFiles(k).name];
+                    else
+                        pathparts = strsplit(myFiles(k).folder,'/');
+                        NameFile = [myFiles(k).folder '/' myFiles(k).name];
+                    end
+                    if rP.debugLog
+                        fprintf(' file name %s \n', baseFileName);
+                    end
+                    data = obj.readFile( NameFile);
+
+                    if ~isempty(data)
+                        [figSig, figSpectrogram] = obj.captureSig ( data(1:Nspec), rP);
+                        set(figSpectrogram, 'Visible', 'on');
+                        titleStr = sprintf(' File: %s ', baseFileName);
+                        title(titleStr); xtickformat('%.1f'); %title(titleStr);
+
+                        set(figSig, 'Visible', 'on');
+                        title(titleStr);
+
+                        % Demodulate data
+                        if strcmp(name,'QAM')
+                            Lqam = length(data);
+                            N0QAMJam = obj.AveEnQAM .* 10^(-snr/10);
+                            NoiseQAMatEsN0 =sqrt(obj.N0QAMatEsN0/2).*(randn(Lqam,1) + 1i.*randn(Lqam,1));
+                            %NoiseQAMJam = sqrt(N0QAMJam/2)*jam_en_v.*(randn(n_symb,1) + 1i.*randn(n_symb,1));
+                            x_QAM = data + NoiseQAMatEsN0; % + 0*NoiseQAMJam;;
+                            obj.writeToFile([rxfileName, 'QAM.bin'], x_QAM);
+                        end
+
+                        if strcmp(name,'MFSK')
+                            Lmfsk = length(data);
+                            N0MFSKJam = obj.AveEnMFSK .* 10^(-snr/10);
+                            NoiseMFSKatEsN0 = sqrt(obj.N0MFSKatEsN0/2)*(randn(Lmfsk, 1) + 1i*randn(Lmfsk, 1));  % when using pulsed jamming, we fixed the AWGN noise at certain Es/N0
+                            %NoiseMFSKJam = sqrt(N0MFSKJam/2)*(randn(obj.MFSKSample, n_symb) + 1i.*randn(obj.MFSKSample,n_symb)).*jam_en_v.'; % pulsed jammer Es/Nj
+                            x_MFSK = data + NoiseMFSKatEsN0; % + NoiseMFSKJam(:);
+                            obj.writeToFile([rxfileName, 'MFSK.bin'], x_MFSK);
+                        end
+
+                        if strcmp(name,'LDS')
+                            Llds = length(data);
+                            N0LDSJam = obj.AveEnLDS .* 10^(-snr/10);
+                            NoiseLDSatEsN0 =sqrt(obj.N0LDSatEsN0/2).*(randn(Llds,1) + 1i.*randn(Llds,1));
+                            %NoiseLDSJam = sqrt(N0LDSJam/2)*jam_en_v.*(randn(n_symb,N) + 1i.*randn(n_symb,N));
+                            %NoiseLDSJam = NoiseLDSJam.';
+                            x_LDS = data + NoiseLDSatEsN0(:); % + NoiseLDSJam(:);
+                            obj.writeToFile([rxfileName, 'LDS.bin'], x_LDS);
+                        end
+
+                        if strcmp(name,'LDSO')
+                            Lldso = length(data);
+                            N0LDSOJam = obj.AveEnLDSO .* 10^(-snr/10);
+                            NoiseLDSOatEsN0 = sqrt(obj.N0LDSOatEsN0/2)*(randn(Lldso,1) + 1i*randn(Lldso,1));  % when using pulsed jamming, we fixed the AWGN noise at certain Es/N0
+                            %NoiseLDSOJam = sqrt(N/K)*sqrt(N0LDSOJam/2)*(randn(K, n_symb) + 1i.*randn(K,n_symb)).*jam_en_v.'; % pulsed jammer Es/Nj
+                            x_LDSO = data + NoiseLDSOatEsN0; % + NoiseLDSOJam;
+                            obj.writeToFile([rxfileName, 'LDSO.bin'], x_LDSO(:));
+                        end
+                    else
+                        if rP.debugLog
+                            fprintf(' Empty data... \n');
+                        end
+                    end
+                end
+
+                txD.rP  = rP;
+                % Saving the .mat file for txData
+                save (rxDataName, 'txD');
+            else
+                if rP.debugLog
+                    fprintf(' No Files are found... \n');
+                end
+            end
+        end % processSimChannel
 
         % Visualize Data
         function visualize(obj, dataPathDir, rP);
@@ -591,8 +751,8 @@ classdef process < handle
 
             % Save in Data file
             rP.K                = K;
-            rP.N                = N;       
-            rP.d_v              = d_v;       
+            rP.N                = N;
+            rP.d_v              = d_v;
             rP.M                = M;
             rP.Es_N0_dB_f       = Es_N0_dB_f;
             rP.MAX_TX_BUFF_SIZE = MAX_TX_BUFF_SIZE;
@@ -704,9 +864,9 @@ classdef process < handle
                 if rP.LDSO
 
                     N0LDSOJam = AveEnLDSO .* 10^(-Es_N0_dB_J(ii)/10);
-                    NoiseLDSOatEsN0 = sqrt(N/K)*sqrt(N0LDSOatEsN0/2)*(randn(K,n_symb) + 1i*randn(K,n_symb));  % when using pulsed jamming, we fixed the AWGN noise at certain Es/N0
-                    NoiseLDSOJam = sqrt(N/K)*sqrt(N0LDSOJam/2)*(randn(K, n_symb) + 1i.*randn(K,n_symb)).*jam_en_v.'; % pulsed jammer Es/Nj
-                    if rP.isOFDM 
+                    NoiseLDSOatEsN0 = sqrt(N0LDSOatEsN0/2)*(randn(K,n_symb) + 1i*randn(K,n_symb));  % when using pulsed jamming, we fixed the AWGN noise at certain Es/N0
+                    NoiseLDSOJam = sqrt(N0LDSOJam/2)*(randn(K, n_symb) + 1i.*randn(K,n_symb)).*jam_en_v.'; % pulsed jammer Es/Nj
+                    if rP.isOFDM
                         x_LDSO = ifft( LDSO_f(:,tx_data(:, 1)+1));
                         y_LDSO = x_LDSO + NoiseLDSOatEsN0 + NoiseLDSOJam;
                         y_LDSO = fft(y_LDSO);
@@ -726,22 +886,22 @@ classdef process < handle
                 end
             end
 
-            f1 = figure; 
+            f1 = figure;
             indL = 1;
-            if rP.QAM 
+            if rP.QAM
                 plot(Eb_N0_dB_J, ber_QAM,'-o')
                 legendInfo{indL} = sprintf('%i-QAM',K);
                 indL = indL + 1;
                 hold on;
             end
-            if rP.MFSK 
+            if rP.MFSK
                 plot(Eb_N0_dB_J, ber_MFSK,'--')
                 legendInfo{indL} = sprintf('%i-MFSK',K);
                 indL = indL + 1;
                 hold on;
             end
 
-            if rP.LDS 
+            if rP.LDS
                 plot(Eb_N0_dB_J, ber_LDS,'-*')
                 legendInfo{indL} = 'LDS';
                 indL = indL + 1;
@@ -751,7 +911,7 @@ classdef process < handle
                 plot(Eb_N0_dB_J, ber_LDSO,'-v')
                 legendInfo{indL} = 'LDSO';
             end
-            
+
             hold off ; title("BER vs Jamming EbN0")
             ylabel('BER') ;xlabel('Pulse Jamming EbN0(dB)');
             grid on ; set(gca, 'YScale', 'log'); legend(legendInfo)
@@ -759,29 +919,29 @@ classdef process < handle
 
 
             f2 = figure;  indL = 1; clear legendInfo;
-            if rP.QAM 
+            if rP.QAM
                 plot(Eb_N0_dB_J, ser_QAM,'-o')
                 legendInfo{indL} = sprintf('%i-QAM',K);
                 indL = indL + 1;
                 hold on;
             end
-            if rP.MFSK 
+            if rP.MFSK
                 plot(Eb_N0_dB_J, ser_MFSK,'--')
                 legendInfo{indL} = sprintf('%i-MFSK',K);
                 indL = indL + 1;
                 hold on;
             end
-            if rP.LDS 
+            if rP.LDS
                 plot(Eb_N0_dB_J, ser_LDS,'-*')
                 legendInfo{indL} =  'LDS';
                 indL = indL + 1;
                 hold on;
             end
-            if rP.LDSO 
+            if rP.LDSO
                 plot(Eb_N0_dB_J, ser_LDSO,'-v')
                 legendInfo{indL} = 'LDSO';
             end
-            
+
             hold off; title("SER vs Jamming EbN0")
             ylabel('SER') ; xlabel('Pulse Jamming EbN0(dB)')
             set(gca, 'YScale', 'log') ; grid on; legend(legendInfo);
